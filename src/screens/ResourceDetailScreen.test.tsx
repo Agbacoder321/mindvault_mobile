@@ -4,6 +4,7 @@ import { fireEvent, render, waitFor } from "@testing-library/react-native";
 import { ActivityIndicator } from "react-native";
 
 import { fetchResource, ResourceFetchError } from "../api/resources";
+import { prepareResourceAccess } from "../api/payment";
 import { fetchVerification, type VerificationDetails } from "../api/verification";
 import { shareResource } from "../utils/shareResource";
 import { openExternalUrl } from "../utils/stellarExpert";
@@ -13,6 +14,10 @@ jest.mock("../api/resources", () => {
   const actual = jest.requireActual("../api/resources");
   return { ...actual, fetchResource: jest.fn() };
 });
+jest.mock("../api/payment", () => ({
+  ...jest.requireActual("../api/payment"),
+  prepareResourceAccess: jest.fn(),
+}));
 jest.mock("../api/verification", () => ({
   ...jest.requireActual("../api/verification"),
   fetchVerification: jest.fn(),
@@ -142,6 +147,21 @@ it("copies the access URL and shows a toast", async () => {
 
   await waitFor(() => expect(Clipboard.setStringAsync).toHaveBeenCalledWith(resource.accessUrl));
   expect(await screen.findByText("Resource URL copied")).toBeTruthy();
+});
+
+it("opens the paywall with the resource title, price and access URL", async () => {
+  mockedFetchResource.mockResolvedValue(resource);
+  const prepare = prepareResourceAccess as jest.MockedFunction<typeof prepareResourceAccess>;
+  prepare.mockResolvedValue({ type: "ready", result: { type: "text", content: "Paid handbook content" } });
+  const screen = renderScreen();
+  fireEvent.press(await screen.findByRole("button", { name: "Unlock for 4.50 USDC" }));
+  expect(screen.getAllByText(resource.title)).toHaveLength(2);
+  expect(screen.getByText(/4.50 USDC.*Stellar testnet/)).toBeTruthy();
+  fireEvent.press(screen.getByText("Pay & Access"));
+  expect(await screen.findByText("Paid handbook content")).toBeTruthy();
+  expect(prepare).toHaveBeenCalledWith(resource.accessUrl, resource.price);
+  fireEvent.press(screen.getByLabelText("Close payment"));
+  expect(screen.queryByText("Paid handbook content")).toBeNull();
 });
 
 it("shares through the resource helper", async () => {

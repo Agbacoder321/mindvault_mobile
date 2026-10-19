@@ -3,6 +3,8 @@ import { Buffer } from "buffer";
 
 import type { AccessResult } from "../types";
 import { extractApiErrorMessage } from "../utils/errorLogger";
+import { parseResourceId } from "../utils/resourceLinks";
+import { saveReceipt } from "../services/receipts";
 import { DEFAULT_NETWORK_PASSPHRASE, DEFAULT_STELLAR_NETWORK } from "./resources";
 
 /**
@@ -13,6 +15,7 @@ import { DEFAULT_NETWORK_PASSPHRASE, DEFAULT_STELLAR_NETWORK } from "./resources
 export const X402_VERSION = 2;
 export const PAYMENT_REQUIRED_HEADER = "PAYMENT-REQUIRED";
 export const PAYMENT_SIGNATURE_HEADER = "PAYMENT-SIGNATURE";
+export const PAYMENT_RESPONSE_HEADER = "PAYMENT-RESPONSE";
 
 const STELLAR_NETWORK_IDS: Record<string, string> = {
   mainnet: "stellar:pubnet",
@@ -274,6 +277,31 @@ export async function submitSignedPayment(
       )
     );
   }
+
+  // A receipt is best effort. Missing/malformed settlement metadata or a full
+  // device must never turn an accepted payment into a retry (and double charge).
+  try {
+    const header = res.headers.get(PAYMENT_RESPONSE_HEADER);
+    if (header) {
+      const settlement = decodeBase64Json(header) as Record<string, unknown> | null;
+      if (settlement?.success === true &&
+        typeof settlement.transaction === "string" && settlement.transaction &&
+        typeof settlement.network === "string") {
+        const resource = challenge.resource as { url?: unknown; description?: unknown } | null;
+        await saveReceipt({
+          resourceId: typeof resource?.url === "string" ? parseResourceId(resource.url) : null,
+          title: typeof resource?.description === "string" ? resource.description : "",
+          amount: challenge.accepted.amount,
+          asset: challenge.accepted.asset,
+          network: settlement.network,
+          txHash: settlement.transaction,
+          // SettleResponse.payer is optional in @x402/core; keep the receipt without it.
+          payer: typeof settlement.payer === "string" ? settlement.payer : "",
+          paidAt: new Date().toISOString(),
+        });
+      }
+    }
+  } catch { /* The content remains accessible even if a receipt cannot be saved. */ }
 
   return resolveResponse(res, url);
 }

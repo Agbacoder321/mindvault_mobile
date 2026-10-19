@@ -18,6 +18,7 @@ import {
   type VerificationDetails,
 } from "../api/verification";
 import { StatusBadge } from "../components/StatusBadge";
+import { PaywallModal } from "../components/PaywallModal";
 import type { RootStackParamList } from "../navigation";
 import type { Resource } from "../types";
 import { getResourceTypeLabel } from "../types";
@@ -206,6 +207,7 @@ export function ResourceDetailScreen({ route, navigation }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [isTransientError, setIsTransientError] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [paywallVisible, setPaywallVisible] = useState(false);
 
   const [verificationDetails, setVerificationDetails] = useState<VerificationDetails | null>(null);
   const [verificationLoading, setVerificationLoading] = useState(false);
@@ -363,6 +365,15 @@ export function ResourceDetailScreen({ route, navigation }: Props) {
           {resource.price} USDC
         </Text>
 
+        <Pressable
+          style={[shared.button, shared.primaryButton, styles.actionButton]}
+          accessibilityRole="button"
+          accessibilityLabel={`Unlock for ${resource.price} USDC`}
+          onPress={() => setPaywallVisible(true)}
+        >
+          <Text style={[shared.buttonText, shared.primaryButtonText]}>Unlock for {resource.price} USDC</Text>
+        </Pressable>
+
         <View style={styles.infoRow}>
           <Text style={styles.label}>Owner</Text>
           <Pressable
@@ -516,10 +527,10 @@ export function ResourceDetailScreen({ route, navigation }: Props) {
         </Text>
 
         <Pressable
-          style={[shared.button, shared.primaryButton, styles.actionButton]}
+          style={[shared.button, styles.actionButton]}
           onPress={handleCopy}
         >
-          <Text style={[shared.buttonText, shared.primaryButtonText]}>
+          <Text style={shared.buttonText}>
             Copy Access URL
           </Text>
         </Pressable>
@@ -531,6 +542,15 @@ export function ResourceDetailScreen({ route, navigation }: Props) {
           <Text style={shared.buttonText}>Share Access URL</Text>
         </Pressable>
       </ScrollView>
+
+      <PaywallModal
+        key={resource.id}
+        visible={paywallVisible}
+        accessUrl={resource.accessUrl}
+        resourceTitle={resource.title}
+        price={resource.price}
+        onClose={() => setPaywallVisible(false)}
+      />
 
       {toast ? (
         <View style={styles.toast}>

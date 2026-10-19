@@ -1,4 +1,4 @@
-import { fetchMe } from "./publishers";
+import { fetchAnalytics, fetchMe, type PublisherAnalytics } from "./publishers";
 import { getApiBaseUrl } from "./resources";
 import { getApiKey } from "../services/secureStorage";
 
@@ -72,5 +72,57 @@ describe("fetchMe", () => {
   it("surfaces the server message for other errors, without echoing the key", async () => {
     mockFetch({ error: "Publisher disabled for key-123" }, 403);
     await expect(fetchMe("key-123")).rejects.toThrow("Publisher disabled for [redacted]");
+  });
+});
+
+describe("fetchAnalytics", () => {
+  const analytics: PublisherAnalytics = {
+    summary: {
+      totalEarned: "12.5000", currency: "USDC", totalSales: 7,
+      totalResources: 2, listedResources: 1,
+      verification: { verified: 1, rejected: 0, pending: 1 },
+    },
+    resources: [{
+      id: "r1", title: "Handbook", price: "2.5000", totalSales: 5, totalEarned: "12.5000",
+      recentPayments: [{ payerAddress: profile.walletAddress, amount: "2.5000", paidAt: "2026-10-01T10:00:00Z" }],
+    }],
+  };
+
+  it("requests the server's analytics shape with the stored key", async () => {
+    mockGetApiKey.mockResolvedValue("stored-key");
+    const fetchMock = mockFetch(analytics);
+    await expect(fetchAnalytics()).resolves.toEqual(analytics);
+    expect(fetchMock).toHaveBeenCalledWith(`${getApiBaseUrl()}/publishers/me/analytics`, {
+      headers: { "x-api-key": "stored-key" },
+    });
+  });
+
+  it("uses an explicit key without reading storage", async () => {
+    const fetchMock = mockFetch(analytics);
+    await fetchAnalytics("candidate-key");
+    expect(mockGetApiKey).not.toHaveBeenCalled();
+    expect(fetchMock.mock.calls[0][1]).toEqual({ headers: { "x-api-key": "candidate-key" } });
+  });
+
+  it("does not fetch without a key", async () => {
+    mockGetApiKey.mockResolvedValue(null);
+    const fetchMock = mockFetch(analytics);
+    await expect(fetchAnalytics()).rejects.toThrow("No API key configured");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("uses the same unauthorized message as fetchMe", async () => {
+    mockFetch({}, 401);
+    await expect(fetchAnalytics("bad-key")).rejects.toThrow("Unauthorized: Invalid API key");
+  });
+
+  it("redacts echoed API keys in server errors", async () => {
+    mockFetch({ error: "Analytics unavailable for secret-key" }, 403);
+    await expect(fetchAnalytics("secret-key")).rejects.toThrow("Analytics unavailable for [redacted]");
+  });
+
+  it("uses an analytics-specific fallback", async () => {
+    global.fetch = jest.fn().mockResolvedValue({ ok: false, status: 500, text: async () => "" });
+    await expect(fetchAnalytics("key")).rejects.toThrow("Failed to load publisher analytics");
   });
 });

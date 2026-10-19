@@ -1,4 +1,7 @@
 import { Buffer } from "buffer";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+
+import { listReceipts } from "../services/receipts";
 
 import {
   encodePaymentSignature,
@@ -64,8 +67,9 @@ function mockResponse(status: number, body: string, headers: Record<string, stri
 const originalFetch = global.fetch;
 let fetchMock: jest.Mock;
 
-beforeEach(() => {
+beforeEach(async () => {
   jest.clearAllMocks();
+  await AsyncStorage.clear();
   fetchMock = jest.fn();
   global.fetch = fetchMock as unknown as typeof global.fetch;
 });
@@ -196,6 +200,63 @@ describe("submitSignedPayment", () => {
     await expect(submitSignedPayment(URL, challenge, "signed-tx")).rejects.toThrow(
       "The payment was not accepted."
     );
+  });
+
+  const settlement = { success: true, transaction: "settled-tx-hash", network: "stellar:testnet", payer: "public-payer" };
+  const settlementHeader = (value: unknown) => Buffer.from(JSON.stringify(value), "utf8").toString("base64");
+
+  it("decodes PAYMENT-RESPONSE and saves a receipt using challenge metadata", async () => {
+    fetchMock.mockResolvedValue(mockResponse(200, "paid content", {
+      "content-type": "text/plain", "PAYMENT-RESPONSE": settlementHeader(settlement),
+    }));
+    await submitSignedPayment("https://download.example.com/opaque", {
+      ...challenge, resource: { url: "https://api.example.com/resources/my%20book", description: "星の本" },
+    }, "signed-secret-auth-xdr");
+    const receipts = await listReceipts();
+    expect(receipts).toEqual([{
+      resourceId: "my book", title: "星の本", amount: "10000000", asset: ASSET,
+      network: settlement.network, txHash: settlement.transaction, payer: settlement.payer,
+      paidAt: expect.any(String),
+    }]);
+    expect(Number.isNaN(Date.parse(receipts[0].paidAt))).toBe(false);
+    expect(JSON.stringify(receipts)).not.toContain("signed-secret-auth-xdr");
+  });
+
+  it.each([null, "%%%", settlementHeader(null), settlementHeader({ ...settlement, success: false }), settlementHeader({ success: true })])(
+    "still returns content without a usable settlement header (%s)", async (header) => {
+      fetchMock.mockResolvedValue(mockResponse(200, "paid content", {
+        "content-type": "text/plain", ...(header ? { "PAYMENT-RESPONSE": header } : {}),
+      }));
+      await expect(submitSignedPayment(URL, challenge, "signed-tx")).resolves.toEqual({ type: "text", content: "paid content" });
+      expect(await listReceipts()).toEqual([]);
+    }
+  );
+
+  it("still saves a receipt when the settlement omits the optional payer", async () => {
+    const { payer: _payer, ...withoutPayer } = settlement;
+    fetchMock.mockResolvedValue(mockResponse(200, "paid content", {
+      "content-type": "text/plain", "PAYMENT-RESPONSE": settlementHeader(withoutPayer),
+    }));
+    await submitSignedPayment(URL, challenge, "signed-tx");
+    expect(await listReceipts()).toEqual([
+      expect.objectContaining({ txHash: settlement.transaction, payer: "" }),
+    ]);
+  });
+
+  it("never fails an accepted payment when storage fails", async () => {
+    fetchMock.mockResolvedValue(mockResponse(200, "paid content", {
+      "content-type": "text/plain", "PAYMENT-RESPONSE": settlementHeader(settlement),
+    }));
+    const spy = jest.spyOn(AsyncStorage, "setItem").mockRejectedValueOnce(new Error("Storage full"));
+    try {
+      await expect(submitSignedPayment(URL, challenge, "signed-tx")).resolves.toEqual({ type: "text", content: "paid content" });
+    } finally { spy.mockRestore(); }
+  });
+
+  it("does not save a receipt for a failed HTTP response even if it has settlement metadata", async () => {
+    fetchMock.mockResolvedValue(mockResponse(402, "", { "PAYMENT-RESPONSE": settlementHeader(settlement) }));
+    await expect(submitSignedPayment(URL, challenge, "signed-tx")).rejects.toThrow("The payment was not accepted");
+    expect(await listReceipts()).toEqual([]);
   });
 });
 

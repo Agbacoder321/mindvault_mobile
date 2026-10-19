@@ -10,11 +10,13 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
 import { fetchMe, type PublisherProfile } from "../api/publishers";
 import { clearApiKey, storeApiKey } from "../services/secureStorage";
 import { spacing, type ThemeColors } from "../theme";
 import { useAppTheme } from "../theme/ThemeProvider";
+import type { RootStackParamList } from "../navigation";
 
 function formatDate(value: string): string {
   const date = new Date(value);
@@ -24,7 +26,7 @@ function formatDate(value: string): string {
 export function PublisherProfileScreen() {
   const { colors, shared, typography } = useAppTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
-  const navigation = useNavigation();
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
 
   const [profile, setProfile] = useState<PublisherProfile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -126,6 +128,17 @@ export function PublisherProfileScreen() {
               </View>
             ))}
           </View>
+        ) : null}
+
+        {profile && !loading && !error ? (
+          <Pressable
+            onPress={() => navigation.navigate("PublisherAnalytics")}
+            accessibilityRole="button"
+            accessibilityLabel="View publisher analytics"
+            style={[shared.button, shared.primaryButton]}
+          >
+            <Text style={[shared.buttonText, shared.primaryButtonText]}>View analytics</Text>
+          </Pressable>
         ) : null}
 
         <View style={styles.card}>

@@ -2,7 +2,7 @@ import { StyleSheet } from "react-native";
 import { DarkTheme, DefaultTheme, type Theme } from "@react-navigation/native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useColorScheme } from "react-native";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { logError } from "../utils/errorLogger";
 
 // Theme type definitions
@@ -129,10 +129,15 @@ export const shared = StyleSheet.create({
   primaryButtonText: { color: "#ffffff" },
 });
 
+const navigationThemes = new WeakMap<ThemeColors, Partial<Record<ColorScheme, Theme>>>();
+
 /** React Navigation theme (headers, cards, backgrounds) built from the app colors. */
 export function getNavigationTheme(colors: ThemeColors, colorScheme: ColorScheme): Theme {
+  const cached = navigationThemes.get(colors) ?? {};
+  const cachedTheme = cached[colorScheme];
+  if (cachedTheme) return cachedTheme;
   const base = colorScheme === "dark" ? DarkTheme : DefaultTheme;
-  return {
+  const theme = {
     ...base,
     colors: {
       ...base.colors,
@@ -144,7 +149,12 @@ export function getNavigationTheme(colors: ThemeColors, colorScheme: ColorScheme
       notification: colors.danger,
     },
   };
+  cached[colorScheme] = theme;
+  navigationThemes.set(colors, cached);
+  return theme;
 }
+
+const lineHeightFor = (fontSize: number) => Math.ceil(fontSize * 1.4);
 
 // Theme hook for components
 export function useTheme() {
@@ -170,24 +180,23 @@ export function useTheme() {
   }, []);
 
   // Save theme preference
-  async function saveTheme(mode: ThemeMode) {
+  const saveTheme = useCallback(async (mode: ThemeMode) => {
     try {
       await AsyncStorage.setItem(THEME_STORAGE_KEY, mode);
       setThemeMode(mode);
     } catch (error) {
       logError("theme.savePreference", error);
     }
-  }
+  }, []);
 
-  const colors = getColors(themeMode, systemColorScheme);
+  const colors = useMemo(() => getColors(themeMode, systemColorScheme), [themeMode, systemColorScheme]);
   const colorScheme = resolveColorScheme(themeMode, systemColorScheme);
 
   // Create typography styles with current colors
   // React Native already multiplies lineHeight by the system font scale, so
   // this stays unscaled; multiplying by fontScale here would scale it twice.
-  const lineHeightFor = (fontSize: number) => Math.ceil(fontSize * 1.4);
 
-  const typography = StyleSheet.create({
+  const typography = useMemo(() => StyleSheet.create({
     heading: {
       fontSize: 20,
       lineHeight: lineHeightFor(20),
@@ -227,10 +236,10 @@ export function useTheme() {
       fontWeight: "600",
       color: colors.primary,
     },
-  });
+  }), [colors]);
 
   // Create shared styles with current colors
-  const shared = StyleSheet.create({
+  const shared = useMemo(() => StyleSheet.create({
     screen: {
       flex: 1,
       backgroundColor: colors.background,
@@ -274,9 +283,9 @@ export function useTheme() {
     primaryButtonText: {
       color: "#ffffff",
     },
-  });
+  }), [colors]);
 
-  return {
+  return useMemo(() => ({
     colors,
     colorScheme,
     spacing,
@@ -285,5 +294,5 @@ export function useTheme() {
     themeMode,
     setThemeMode: saveTheme,
     isLoading,
-  };
+  }), [colors, colorScheme, typography, shared, themeMode, saveTheme, isLoading]);
 }
