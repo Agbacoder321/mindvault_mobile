@@ -13,6 +13,7 @@ import { DevSignerScreen } from "./screens/DevSignerScreen";
 import { PublisherResourcesScreen } from "./screens/PublisherResourcesScreen";
 import { PublisherProfileScreen } from "./screens/PublisherProfileScreen";
 import { PublisherAnalyticsScreen } from "./screens/PublisherAnalyticsScreen";
+import { PurchaseHistoryScreen } from "./screens/PurchaseHistoryScreen";
 
 export type RootStackParamList = {
   Catalog: undefined;
@@ -23,6 +24,7 @@ export type RootStackParamList = {
   PublisherResources: undefined;
   PublisherProfile: undefined;
   PublisherAnalytics: undefined;
+  PurchaseHistory: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -79,6 +81,11 @@ export function RootNavigator() {
         name="PublisherAnalytics"
         component={PublisherAnalyticsScreen}
         options={{ title: "Publisher Analytics" }}
+      />
+      <Stack.Screen
+        name="PurchaseHistory"
+        component={PurchaseHistoryScreen}
+        options={{ title: "Purchase History" }}
       />
     </Stack.Navigator>
   );

@@ -289,3 +289,31 @@ describe("collapsible verification section", () => {
   });
 });
 
+describe("thumbnail", () => {
+  it("shows the thumbnail when the resource has one", async () => {
+    mockedFetchResource.mockResolvedValue({ ...resource, thumbnailUrl: "https://cdn.example.test/t.png" });
+    const screen = renderScreen();
+
+    const image = await screen.findByLabelText("Thumbnail of Stellar handbook");
+    expect(image.props.source).toEqual({ uri: "https://cdn.example.test/t.png" });
+  });
+
+  it("leaves the thumbnail out when the resource has none", async () => {
+    mockedFetchResource.mockResolvedValue(resource);
+    const screen = renderScreen();
+
+    await screen.findByText(resource.title);
+    expect(screen.queryByLabelText("Thumbnail of Stellar handbook")).toBeNull();
+  });
+
+  it("falls back to the type icon when the thumbnail fails to load", async () => {
+    mockedFetchResource.mockResolvedValue({ ...resource, thumbnailUrl: "https://cdn.example.test/t.png" });
+    const screen = renderScreen();
+
+    fireEvent(await screen.findByLabelText("Thumbnail of Stellar handbook"), "error");
+
+    expect(screen.getByLabelText("File icon for Stellar handbook")).toBeTruthy();
+    expect(screen.queryByLabelText("Thumbnail of Stellar handbook")).toBeNull();
+  });
+});
+

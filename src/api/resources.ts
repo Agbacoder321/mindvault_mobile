@@ -2,9 +2,9 @@ import { getDefaultApiBaseUrl, loadApiBaseUrl, saveApiBaseUrl } from "./apiSetti
 import Constants from "expo-constants";
 import { Keypair, Transaction } from "@stellar/stellar-sdk";
 
+import { ApiError, request } from "./client";
 import { getApiKey, storeApiKey, clearApiKey } from "../services/secureStorage";
 import type { CatalogFilters, RegistryStatus, Resource } from "../types";
-import { extractApiErrorMessage } from "../utils/errorLogger";
 import { validateStellarSecret } from "../utils/validateStellarSecret";
 import { parsePriceRange } from "../utils/priceRange";
 
@@ -79,19 +79,27 @@ export function getApiBaseUrl(): string {
   return apiBaseUrl;
 }
 
-export async function fetchCatalog(params?: FetchCatalogParams): Promise<CatalogResponse> {
-  const res = await fetch(`${apiBaseUrl}/resources${buildQuery(params)}`);
-  if (!res.ok) {
-    throw new Error(await extractApiErrorMessage(res, "Failed to fetch catalog"));
-  }
-  const rawData = await res.json();
+/** Body shape of `GET /resources`: a bare array, or an envelope with pagination fields. */
+type CatalogPayload =
+  | Resource[]
+  | { items?: Resource[]; total?: number; nextOffset?: number | null };
+
+export async function fetchCatalog(
+  params?: FetchCatalogParams,
+  signal?: AbortSignal
+): Promise<CatalogResponse> {
+  const { data: rawData, headers } = await request<CatalogPayload>(
+    `${apiBaseUrl}/resources${buildQuery(params)}`,
+    { signal, fallbackMessage: "Failed to fetch catalog" }
+  );
+  const payload = Array.isArray(rawData) ? null : rawData;
   const items: Resource[] = Array.isArray(rawData) ? rawData : (rawData?.items ?? []);
 
-  const totalHeader = res.headers?.get
-    ? (res.headers.get("x-total-count") ?? res.headers.get("X-Total-Count"))
+  const totalHeader = headers?.get
+    ? (headers.get("x-total-count") ?? headers.get("X-Total-Count"))
     : null;
-  const nextOffsetHeader = res.headers?.get
-    ? (res.headers.get("x-next-offset") ?? res.headers.get("X-Next-Offset"))
+  const nextOffsetHeader = headers?.get
+    ? (headers.get("x-next-offset") ?? headers.get("X-Next-Offset"))
     : null;
 
   let total: number;
@@ -102,8 +110,8 @@ export async function fetchCatalog(params?: FetchCatalogParams): Promise<Catalog
     !isNaN(Number(totalHeader))
   ) {
     total = Number(totalHeader);
-  } else if (!Array.isArray(rawData) && typeof rawData?.total === "number") {
-    total = rawData.total;
+  } else if (payload && typeof payload.total === "number") {
+    total = payload.total;
   } else {
     total = items.length;
   }
@@ -118,10 +126,10 @@ export async function fetchCatalog(params?: FetchCatalogParams): Promise<Catalog
   ) {
     nextOffset = Number(nextOffsetHeader);
   } else if (
-    !Array.isArray(rawData) &&
-    (typeof rawData?.nextOffset === "number" || rawData?.nextOffset === null)
+    payload &&
+    (typeof payload.nextOffset === "number" || payload.nextOffset === null)
   ) {
-    nextOffset = rawData.nextOffset;
+    nextOffset = payload.nextOffset;
   }
 
   return {
@@ -141,45 +149,35 @@ export class ResourceFetchError extends Error {
   }
 }
 
+function resourceFallbackMessage(status: number): string {
+  if (status === 404) return "Resource not found.";
+  if (status >= 500) return "Server error. Please try again.";
+  return "Failed to load resource.";
+}
+
 export async function fetchResource(id: string): Promise<Resource> {
-  let res: Response;
   try {
     // Public metadata endpoint — GET /resources/:id is x402-paywalled.
-    res = await fetch(`${apiBaseUrl}/resources/${encodeURIComponent(id)}/meta`);
-  } catch {
-    throw new ResourceFetchError("Network error. Please check your connection.", true);
-  }
-
-  if (res.status === 404) {
-    throw new ResourceFetchError(
-      await extractApiErrorMessage(res, "Resource not found."),
-      false
+    const { data } = await request<Resource>(
+      `${apiBaseUrl}/resources/${encodeURIComponent(id)}/meta`,
+      { fallbackMessage: resourceFallbackMessage }
     );
+    return data;
+  } catch (error) {
+    if (!(error instanceof ApiError)) throw error;
+    if (error.kind === "network" || error.kind === "timeout") {
+      throw new ResourceFetchError("Network error. Please check your connection.", true);
+    }
+    // 5xx is worth retrying later; a 404 or other client error is not.
+    throw new ResourceFetchError(error.message, (error.status ?? 0) >= 500);
   }
-
-  if (res.status >= 500) {
-    throw new ResourceFetchError(
-      await extractApiErrorMessage(res, "Server error. Please try again."),
-      true
-    );
-  }
-
-  if (!res.ok) {
-    throw new ResourceFetchError(
-      await extractApiErrorMessage(res, "Failed to load resource."),
-      false
-    );
-  }
-
-  return res.json();
 }
 
 export async function fetchRegistryStatus(): Promise<RegistryStatus> {
-  const res = await fetch(`${apiBaseUrl}/registry/status`);
-  if (!res.ok) {
-    throw new Error(await extractApiErrorMessage(res, "Failed to fetch registry status"));
-  }
-  return res.json();
+  const { data } = await request<RegistryStatus>(`${apiBaseUrl}/registry/status`, {
+    fallbackMessage: "Failed to fetch registry status",
+  });
+  return data;
 }
 
 /**
@@ -199,32 +197,26 @@ async function publisherFetch<T>(
     throw new Error("No API key configured");
   }
 
-  const res = await fetch(`${apiBaseUrl}${path}`, {
-    method: init.method,
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": apiKey,
-    },
-    ...(init.body !== undefined ? { body: JSON.stringify(init.body) } : {}),
-  });
-
-  if (res.status === 401) {
-    throw new Error("Unauthorized: Invalid API key");
-  }
-  if (!res.ok) {
-    const message = await extractApiErrorMessage(
-      res,
-      res.status === 403 ? "Forbidden: Access denied" : fallbackMessage
-    );
+  try {
+    const { data } = await request<T>(`${apiBaseUrl}${path}`, {
+      method: init.method,
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": apiKey,
+      },
+      body: init.body,
+      fallbackMessage: (status) =>
+        status === 403 ? "Forbidden: Access denied" : fallbackMessage,
+    });
+    return data;
+  } catch (error) {
+    if (!(error instanceof ApiError) || error.kind !== "http") throw error;
+    if (error.status === 401) {
+      throw new Error("Unauthorized: Invalid API key");
+    }
     // Never let a server that echoes the key leak it into the UI.
-    throw new Error(message.split(apiKey).join("[redacted]"));
+    throw new Error(error.message.split(apiKey).join("[redacted]"));
   }
-
-  if (res.status === 204) {
-    return undefined as T;
-  }
-
-  return res.json();
 }
 
 function resourcePath(resourceId: string, suffix: string): string {
@@ -369,25 +361,26 @@ export async function fetchPublisherResources(
   }
 
   const query = buildQuery(search?.trim() ? { search: search.trim() } : undefined);
-  const res = await fetch(`${getApiBaseUrl()}/publishers/me/resources${query}`, {
-    headers: {
-      "x-api-key": key,
-    },
-  });
-
-  if (res.status === 401) {
-    throw new Error("Unauthorized: Invalid API key");
+  try {
+    const { data } = await request<Resource[]>(
+      `${getApiBaseUrl()}/publishers/me/resources${query}`,
+      {
+        headers: {
+          "x-api-key": key,
+        },
+        fallbackMessage: "Failed to fetch publisher resources",
+      }
+    );
+    return data;
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 401) {
+      throw new Error("Unauthorized: Invalid API key");
+    }
+    if (error instanceof ApiError && error.status === 403) {
+      throw new Error("Forbidden: Access denied");
+    }
+    throw error;
   }
-
-  if (res.status === 403) {
-    throw new Error("Forbidden: Access denied");
-  }
-
-  if (!res.ok) {
-    throw new Error(await extractApiErrorMessage(res, "Failed to fetch publisher resources"));
-  }
-
-  return res.json();
 }
 
 export { storeApiKey };

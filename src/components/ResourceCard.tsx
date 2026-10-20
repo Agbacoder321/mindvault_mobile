@@ -2,6 +2,7 @@ import * as Clipboard from "expo-clipboard";
 import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
+  Image,
   Pressable,
   StyleSheet,
   Text,
@@ -9,6 +10,7 @@ import {
   View,
 } from "react-native";
 
+import { getApiBaseUrl } from "../api/resources";
 import type { Resource } from "../types";
 import { getResourceTypeLabel } from "../types";
 import { useEditPrice, validatePrice } from "../hooks/useEditPrice";
@@ -60,6 +62,68 @@ function onchainStyle(status: Resource["onchainStatus"], colors: ThemeColors) {
   }
 }
 
+/**
+ * The image to show for a resource: the server's `thumbnailUrl` when it sends one,
+ * otherwise the public thumbnail endpoint for image resources.
+ */
+export function getResourceThumbnailUri(resource: Resource): string | null {
+  if (resource.thumbnailUrl) return resource.thumbnailUrl;
+  if (resource.mimeType?.toLowerCase().startsWith("image/")) {
+    return `${getApiBaseUrl()}/resources/${encodeURIComponent(resource.id)}/thumbnail`;
+  }
+  return null;
+}
+
+const TYPE_ICONS: Record<string, string> = {
+  file: "📄",
+  link: "🔗",
+};
+
+/**
+ * A fixed-aspect-ratio image with a placeholder while it loads. If it fails to
+ * load, it shows the resource-type icon instead, so the card layout stays put.
+ */
+export function ResourceThumbnail({
+  uri,
+  title,
+  resourceType,
+}: {
+  uri: string;
+  title: string;
+  resourceType: string;
+}) {
+  const { colors } = useAppTheme();
+  const [status, setStatus] = useState<"loading" | "loaded" | "failed">("loading");
+
+  if (status === "failed") {
+    return (
+      <View
+        style={[styles.thumbnail, { backgroundColor: colors.neutralBg }]}
+        accessible
+        accessibilityRole="image"
+        accessibilityLabel={`${getResourceTypeLabel(resourceType)} icon for ${title}`}
+      >
+        <Text style={styles.fallbackIcon}>{TYPE_ICONS[resourceType] ?? "📎"}</Text>
+      </View>
+    );
+  }
+
+  return (
+    <View style={[styles.thumbnail, { backgroundColor: colors.neutralBg }]}>
+      {status === "loading" ? <ActivityIndicator color={colors.textSubtle} /> : null}
+      <Image
+        source={{ uri }}
+        style={StyleSheet.absoluteFill}
+        resizeMode="cover"
+        accessibilityRole="image"
+        accessibilityLabel={`Thumbnail of ${title}`}
+        onLoad={() => setStatus("loaded")}
+        onError={() => setStatus("failed")}
+      />
+    </View>
+  );
+}
+
 export function ResourceCard({
   resource,
   onCopyUrl,
@@ -73,6 +137,7 @@ export function ResourceCard({
   const { colors, shared, typography } = useAppTheme();
   const verification = verificationStyle(resource.verificationStatus, colors);
   const onchain = onchainStyle(resource.onchainStatus, colors);
+  const thumbnailUri = getResourceThumbnailUri(resource);
   const {
     status,
     error,
@@ -210,6 +275,15 @@ export function ResourceCard({
 
   return (
     <View style={shared.card}>
+      {thumbnailUri ? (
+        // Keyed by URI, so a new image starts with its own placeholder and error state.
+        <ResourceThumbnail
+          key={thumbnailUri}
+          uri={thumbnailUri}
+          title={resource.title}
+          resourceType={resource.resourceType}
+        />
+      ) : null}
       <Text style={typography.cardTitle}>{resource.title}</Text>
 
       {resource.publisherName ? (
@@ -455,6 +529,17 @@ export function ResourceCard({
 }
 
 const styles = StyleSheet.create({
+  thumbnail: {
+    width: "100%",
+    aspectRatio: 16 / 9,
+    borderRadius: 12,
+    overflow: "hidden",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  fallbackIcon: {
+    fontSize: 32,
+  },
   badges: {
     flexDirection: "row",
     flexWrap: "wrap",

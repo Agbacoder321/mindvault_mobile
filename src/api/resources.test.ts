@@ -107,7 +107,8 @@ describe('fetchCatalog', () => {
     const result = await fetchCatalog({ limit: 20, offset: 0 });
 
     expect(fetchMock).toHaveBeenCalledWith(
-      `${getApiBaseUrl()}/resources?limit=20&offset=0`
+      `${getApiBaseUrl()}/resources?limit=20&offset=0`,
+      expect.objectContaining({ method: 'GET' })
     );
     expect(result).toEqual({
       items: mockItems,
@@ -177,7 +178,7 @@ describe('fetchPublisherResources', () => {
 
     expect(fetchMock).toHaveBeenCalledWith(
       `${getApiBaseUrl()}/publishers/me/resources`,
-      { headers: { 'x-api-key': 'publisher-key' } }
+      expect.objectContaining({ headers: { 'x-api-key': 'publisher-key' } })
     );
   });
 
@@ -187,7 +188,7 @@ describe('fetchPublisherResources', () => {
 
     await fetchPublisherResources();
 
-    expect(fetchMock.mock.calls[0][1]).toEqual({
+    expect(fetchMock.mock.calls[0][1]).toMatchObject({
       headers: { 'x-api-key': 'stored-key' },
     });
   });
@@ -397,7 +398,10 @@ describe('fetchResource', () => {
     const fetchMock = mockFetch({ id: 'a b', title: 'Doc' });
 
     await expect(fetchResource('a b')).resolves.toMatchObject({ title: 'Doc' });
-    expect(fetchMock).toHaveBeenCalledWith(`${getApiBaseUrl()}/resources/a%20b/meta`);
+    expect(fetchMock).toHaveBeenCalledWith(
+      `${getApiBaseUrl()}/resources/a%20b/meta`,
+      expect.objectContaining({ method: 'GET' })
+    );
   });
 
   it('maps 404 to a permanent error with the server message', async () => {

@@ -225,6 +225,23 @@ export function SettingsScreen() {
 
         <View style={[styles.infoCard, { backgroundColor: colors.neutralBg, marginTop: 32 }]}>
           <Text style={[styles.title, { fontSize: 16, color: colors.text, marginBottom: 8 }]}>
+            Purchase History
+          </Text>
+          <Text style={[styles.infoText, { color: colors.textMuted, marginBottom: 16 }]}>
+            Review the receipts for resources you have unlocked, and export them for your records.
+          </Text>
+          <TouchableOpacity
+            style={[shared.button, { backgroundColor: colors.primary }]}
+            onPress={() => navigation.navigate("PurchaseHistory")}
+            accessibilityRole="button"
+            accessibilityLabel="Open purchase history"
+          >
+            <Text style={[shared.buttonText, { color: "#ffffff" }]}>View Purchase History</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={[styles.infoCard, { backgroundColor: colors.neutralBg, marginTop: 32 }]}>
+          <Text style={[styles.title, { fontSize: 16, color: colors.text, marginBottom: 8 }]}>
             Support
           </Text>
           <Text style={[styles.infoText, { color: colors.textMuted, marginBottom: 16 }]}>

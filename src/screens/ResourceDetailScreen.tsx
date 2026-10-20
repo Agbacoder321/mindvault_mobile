@@ -17,6 +17,7 @@ import {
   formatConfidence,
   type VerificationDetails,
 } from "../api/verification";
+import { ResourceThumbnail } from "../components/ResourceCard";
 import { StatusBadge } from "../components/StatusBadge";
 import { PaywallModal } from "../components/PaywallModal";
 import type { RootStackParamList } from "../navigation";
@@ -343,6 +344,14 @@ export function ResourceDetailScreen({ route, navigation }: Props) {
   return (
     <SafeAreaView style={shared.screen} edges={["bottom"]}>
       <ScrollView contentContainerStyle={styles.content}>
+        {resource.thumbnailUrl ? (
+          <ResourceThumbnail
+            key={resource.thumbnailUrl}
+            uri={resource.thumbnailUrl}
+            title={resource.title}
+            resourceType={resource.resourceType}
+          />
+        ) : null}
         <Text style={typography.subtitle}>Resource</Text>
         <Text style={typography.title}>{resource.title}</Text>
 
