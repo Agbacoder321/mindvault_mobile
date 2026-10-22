@@ -10,6 +10,7 @@ import {
   recordRecentResource,
 } from "../services/recent";
 import { ThemeProvider } from "../theme/ThemeProvider";
+import { ToastProvider } from "../components/ToastProvider";
 
 jest.mock("../api/resources");
 jest.mock("../services/recent", () => ({
@@ -97,7 +98,9 @@ describe("CatalogScreen search debounce", () => {
   it("does not refetch on every keystroke, only after typing pauses", async () => {
     const { getByLabelText } = render(
       <ThemeProvider>
-        <CatalogScreen navigation={navigation} />
+        <ToastProvider>
+          <CatalogScreen navigation={navigation} />
+        </ToastProvider>
       </ThemeProvider>
     );
 
@@ -156,7 +159,9 @@ describe("CatalogScreen search debounce", () => {
 function renderCatalog() {
   return render(
     <ThemeProvider>
-      <CatalogScreen navigation={navigation} />
+      <ToastProvider>
+        <CatalogScreen navigation={navigation} />
+      </ToastProvider>
     </ThemeProvider>
   );
 }
