@@ -4,7 +4,6 @@ import { fireEvent, render, waitFor } from "@testing-library/react-native";
 import { ReceiptDetailScreen } from "./ReceiptDetailScreen";
 import { getReceipt } from "../services/receipts";
 import { fetchReceipt } from "../api/payment";
-import { stellarExpertTxUrl } from "../utils/stellarExpert";
 
 jest.mock("../services/receipts", () => ({
   ...jest.requireActual("../services/receipts"),
@@ -18,7 +17,7 @@ jest.mock("../api/payment", () => ({
 
 jest.mock("../utils/stellarExpert", () => ({
   ...jest.requireActual("../utils/stellarExpert"),
-  stellarExpertTxUrl: jest.fn(() => "https://stellar.expert/explorer/testnet/tx/abc123"),
+  stellarExpertTxUrl: jest.fn((args: any) => `https://stellar.expert/explorer/${args.network}/tx/${args.txHash}`),
   openExternalUrl: jest.fn(),
 }));
 
@@ -67,15 +66,7 @@ jest.mock("../theme/ThemeProvider", () => {
   };
 });
 
-jest.mock("react-native", () => {
-  const RN = jest.requireActual("react-native");
-  return {
-    ...RN,
-    Alert: {
-      alert: jest.fn(),
-    },
-  };
-});
+
 
 const mockedGetReceipt = getReceipt as jest.MockedFunction<typeof getReceipt>;
 const mockedFetchReceipt = fetchReceipt as jest.MockedFunction<typeof fetchReceipt>;
@@ -102,7 +93,7 @@ describe("ReceiptDetailScreen", () => {
     });
 
     const { getByText } = render(
-      <ReceiptDetailScreen route={{ params: { txHash: "abc123def456" } }} navigation={{ navigate: jest.fn() }} />
+      <ReceiptDetailScreen route={{ params: { txHash: "abc123def456" } } as any} navigation={{ navigate: jest.fn() } as any} />
     );
 
     expect(getByText("Loading receipt details…")).toBeTruthy();
@@ -135,8 +126,8 @@ describe("ReceiptDetailScreen", () => {
     mockedGetReceipt.mockResolvedValue(localReceipt);
     mockedFetchReceipt.mockResolvedValue(serverReceipt);
 
-    const { getByText, queryByText } = render(
-      <ReceiptDetailScreen route={{ params: { txHash: "abc123def456" } }} navigation={{ navigate: jest.fn() }} />
+    const { getByText } = render(
+      <ReceiptDetailScreen route={{ params: { txHash: "abc123def456" } } as any} navigation={{ navigate: jest.fn() } as any} />
     );
 
     await waitFor(() => {
@@ -173,7 +164,7 @@ describe("ReceiptDetailScreen", () => {
     mockedFetchReceipt.mockResolvedValue(serverReceipt);
 
     const { getByText } = render(
-      <ReceiptDetailScreen route={{ params: { txHash: "abc123def456" } }} navigation={{ navigate: jest.fn() }} />
+      <ReceiptDetailScreen route={{ params: { txHash: "abc123def456" } } as any} navigation={{ navigate: jest.fn() } as any} />
     );
 
     await waitFor(() => {
@@ -200,11 +191,11 @@ describe("ReceiptDetailScreen", () => {
     mockedFetchReceipt.mockResolvedValue(serverReceipt);
 
     const { getByText } = render(
-      <ReceiptDetailScreen route={{ params: { txHash: "abc123def456" } }} navigation={{ navigate: jest.fn() }} />
+      <ReceiptDetailScreen route={{ params: { txHash: "abc123def456" } } as any} navigation={{ navigate: jest.fn() } as any} />
     );
 
     await waitFor(() => {
-      expect(getByText("No local receipt to compare")).toBeTruthy();
+      expect(getByText(/No local receipt to compare/)).toBeTruthy();
       expect(getByText("No local receipt found for this transaction.")).toBeTruthy();
     });
   });
@@ -214,7 +205,7 @@ describe("ReceiptDetailScreen", () => {
     mockedFetchReceipt.mockRejectedValue(new Error("Network error"));
 
     const { getByText } = render(
-      <ReceiptDetailScreen route={{ params: { txHash: "abc123def456" } }} navigation={{ navigate: jest.fn() }} />
+      <ReceiptDetailScreen route={{ params: { txHash: "abc123def456" } } as any} navigation={{ navigate: jest.fn() } as any} />
     );
 
     await waitFor(() => {
@@ -240,7 +231,7 @@ describe("ReceiptDetailScreen", () => {
     mockedFetchReceipt.mockResolvedValue(serverReceipt);
 
     const { getByText } = render(
-      <ReceiptDetailScreen route={{ params: { txHash: "abc123def456" } }} navigation={{ navigate: jest.fn() }} />
+      <ReceiptDetailScreen route={{ params: { txHash: "abc123def456" } } as any} navigation={{ navigate: jest.fn() } as any} />
     );
 
     await waitFor(() => {
@@ -254,5 +245,3 @@ describe("ReceiptDetailScreen", () => {
     });
   });
 });
-
-import { Alert } from "react-native";

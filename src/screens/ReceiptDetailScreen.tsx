@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  Linking,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -229,14 +228,13 @@ function getVerificationStatus(
 }
 
 export function ReceiptDetailScreen({ route, navigation }: Props) {
-  const { colors, shared, typography } = useAppTheme();
+  const { colors, shared } = useAppTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
   const { txHash } = route.params;
   const [localReceipt, setLocalReceipt] = useState<PaymentReceipt | null>(null);
   const [serverReceipt, setServerReceipt] = useState<ServerReceipt | null>(null);
   const [loading, setLoading] = useState(true);
-  const [loadingServer, setLoadingServer] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const loadLocalReceipt = useCallback(async () => {
@@ -249,7 +247,6 @@ export function ReceiptDetailScreen({ route, navigation }: Props) {
   }, [txHash]);
 
   const loadServerReceipt = useCallback(async () => {
-    setLoadingServer(true);
     try {
       const receipt = await fetchReceipt(txHash);
       setServerReceipt(receipt);
@@ -257,7 +254,6 @@ export function ReceiptDetailScreen({ route, navigation }: Props) {
       const message = err instanceof Error ? err.message : "Failed to fetch server receipt";
       setError(message);
     } finally {
-      setLoadingServer(false);
       setLoading(false);
     }
   }, [txHash]);
@@ -405,7 +401,6 @@ export function ReceiptDetailScreen({ route, navigation }: Props) {
           <View style={styles.actionRow}>
             <Pressable
               onPress={handleOpenExplorer}
-              style={styles.actionButton}
               style={[styles.actionButton, styles.actionButtonSecondary]}
               accessibilityRole="button"
               accessibilityLabel="View transaction on Stellar Expert"
@@ -502,7 +497,7 @@ export function ReceiptDetailScreen({ route, navigation }: Props) {
               <Text style={styles.sectionTitle}>Local Receipt</Text>
             </View>
             <View style={styles.sectionContent}>
-              <Text style={styles.summaryText} textAlign="center">
+              <Text style={[styles.summaryText, { textAlign: "center" }]}>
                 No local receipt found for this transaction.
               </Text>
             </View>

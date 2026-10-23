@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Modal,
@@ -249,7 +249,7 @@ export function LeaseSheet({
 
   async function handleConfirm() {
     if (!selectedTier || !quote || busy.current) return;
-    const run = ++flow.current;
+    flow.current += 1;
     busy.current = true;
     setErrorMsg(null);
     setPhase("signing");
@@ -330,7 +330,7 @@ export function LeaseSheet({
                   Rent <Text style={{ fontWeight: "700" }}>{leaseTierLabel(quote.tier)}</Text> access for
                 </Text>
                 <Text style={{ fontSize: 24, fontWeight: "700", color: colors.primary, textAlign: "center" }}>
-                  {Number(quote.price) / 10_000_000} USDC
+                  {(Number(quote.price) / 10_000_000).toFixed(2)} USDC
                 </Text>
                 <View style={styles.creatorRow}>
                   <Text style={styles.creatorLabel}>Creator:</Text>

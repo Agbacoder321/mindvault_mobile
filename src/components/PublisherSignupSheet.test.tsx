@@ -1,4 +1,5 @@
 import React from "react";
+import { Alert } from "react-native";
 import { fireEvent, render, waitFor } from "@testing-library/react-native";
 
 import { PublisherSignupSheet } from "./PublisherSignupSheet";
@@ -8,6 +9,12 @@ import { storeApiKey } from "../services/secureStorage";
 jest.mock("../api/publishers", () => ({
   ...jest.requireActual("../api/publishers"),
   registerPublisher: jest.fn(),
+}));
+
+jest.mock("react-native/Libraries/Alert/Alert", () => ({
+  __esModule: true,
+  alert: jest.fn(),
+  default: { alert: jest.fn() },
 }));
 
 jest.mock("../services/secureStorage", () => ({
@@ -60,17 +67,7 @@ jest.mock("../theme/ThemeProvider", () => {
   };
 });
 
-jest.mock("react-native", () => {
-  const RN = jest.requireActual("react-native");
-  return {
-    ...RN,
-    Alert: {
-      alert: jest.fn((title, message, buttons) => {
-        if (buttons?.[0]?.onPress) buttons[0].onPress();
-      }),
-    },
-  };
-});
+
 
 const mockedRegisterPublisher = registerPublisher as jest.MockedFunction<typeof registerPublisher>;
 const mockedStoreApiKey = storeApiKey as jest.MockedFunction<typeof storeApiKey>;
@@ -140,7 +137,7 @@ describe("PublisherSignupSheet", () => {
     fireEvent.press(getByText("Create Account"));
 
     await waitFor(() => {
-      expect(getByText("Enter a valid Stellar public key")).toBeTruthy();
+      expect(getByText(/Enter a valid Stellar public key/)).toBeTruthy();
     });
   });
 
@@ -270,5 +267,3 @@ describe("PublisherSignupSheet", () => {
     expect(onClose).toHaveBeenCalled();
   });
 });
-
-import { Alert } from "react-native";

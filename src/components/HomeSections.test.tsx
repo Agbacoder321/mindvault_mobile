@@ -55,22 +55,13 @@ jest.mock("../theme/ThemeProvider", () => {
   };
 });
 
-jest.mock("./ResourceCard", () => ({
-  ResourceCard: ({ resource }: { resource: Resource }) => (
-    <View testID={`resource-card-${resource.id}`} accessible accessibilityLabel={resource.title}>
-      <Text>{resource.title}</Text>
-    </View>
-  ),
-}));
-
-jest.mock("react-native", () => {
-  const RN = jest.requireActual("react-native");
+jest.mock("./ResourceCard", () => {
+  const { View: MockView, Text: MockText } = jest.requireActual("react-native");
   return {
-    ...RN,
-    FlatList: ({ data, renderItem, ...props }: any) => (
-      <View {...props} testID="flatlist">
-        {data?.map((item: any, index: number) => renderItem({ item, index }))}
-      </View>
+    ResourceCard: ({ resource }: { resource: Resource }) => (
+      <MockView testID={`resource-card-${resource.id}`} accessible accessibilityLabel={resource.title}>
+        <MockText>{resource.title}</MockText>
+      </MockView>
     ),
   };
 });
@@ -157,11 +148,12 @@ describe("HomeSections", () => {
 
   it("hides section when it fails to load", async () => {
     const newestResources = [createResource({ id: "new-1", title: "Newest Resource" })];
+    const verifiedResources = [createResource({ id: "ver-1", title: "Verified Resource" })];
 
     mockedFetchCatalog
       .mockResolvedValueOnce({ items: newestResources, total: 1, nextOffset: null })
       .mockRejectedValueOnce(new Error("Network error"))
-      .mockResolvedValueOnce({ items: [], total: 0, nextOffset: null });
+      .mockResolvedValueOnce({ items: verifiedResources, total: 1, nextOffset: null });
 
     const { getByText, queryByText } = render(<HomeSections />);
 
@@ -198,23 +190,26 @@ describe("HomeSections", () => {
       .mockResolvedValueOnce({ items: cheapestResources, total: 1, nextOffset: null })
       .mockResolvedValueOnce({ items: verifiedResources, total: 1, nextOffset: null });
 
-    const { getByText } = render(<HomeSections onSeeAll={onSeeAll} />);
+    const { getByLabelText } = render(<HomeSections onSeeAll={onSeeAll} />);
 
     await waitFor(() => {
-      expect(getByText("Newest Resource")).toBeTruthy();
+      expect(getByLabelText("See all newest resources")).toBeTruthy();
     });
 
-    fireEvent.press(getByText("See all"));
+    fireEvent.press(getByLabelText("See all newest resources"));
 
     await waitFor(() => {
       expect(onSeeAll).toHaveBeenCalledWith("newest", undefined);
     });
 
-    // Reset mock for next section
+    // The verified section carries its filter through to the callback.
     onSeeAll.mockClear();
 
-    // Find the "See all" for Cheapest - need to query by accessibility label
-    // Since we can't easily find it, let's just verify the first one works
+    fireEvent.press(getByLabelText("See all verified resources"));
+
+    await waitFor(() => {
+      expect(onSeeAll).toHaveBeenCalledWith(undefined, { verificationStatus: "verified" });
+    });
   });
 
   it("excludes the specified resourceId from sections", async () => {
@@ -234,5 +229,3 @@ describe("HomeSections", () => {
     });
   });
 });
-
-import { View, Text } from "react-native";

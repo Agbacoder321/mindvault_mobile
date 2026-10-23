@@ -5,7 +5,7 @@ import type { AccessResult } from "../types";
 import { extractApiErrorMessage } from "../utils/errorLogger";
 import { parseResourceId } from "../utils/resourceLinks";
 import { saveReceipt } from "../services/receipts";
-import { DEFAULT_NETWORK_PASSPHRASE, DEFAULT_STELLAR_NETWORK } from "./resources";
+import { DEFAULT_NETWORK_PASSPHRASE, DEFAULT_STELLAR_NETWORK, getApiBaseUrl } from "./resources";
 
 /**
  * Client for the server's x402 v2 paywall (`@x402/express` with the
@@ -336,9 +336,6 @@ export interface ServerReceipt {
 
 /** Fetches a receipt from the server for verification. */
 export async function fetchReceipt(paymentId: string): Promise<ServerReceipt> {
-  const { getApiBaseUrl } = await import("./resources");
-  const { extractApiErrorMessage } = await import("../utils/errorLogger");
-
   const res = await fetch(`${getApiBaseUrl()}/payments/${encodeURIComponent(paymentId)}/receipt`);
 
   if (!res.ok) {

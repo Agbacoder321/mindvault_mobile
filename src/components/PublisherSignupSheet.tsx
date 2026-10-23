@@ -16,7 +16,7 @@ import { useAppTheme } from "../theme/ThemeProvider";
 import type { ThemeColors } from "../theme";
 import { spacing } from "../theme";
 import { storeApiKey } from "../services/secureStorage";
-import { registerPublisher, type RegisterPublisherRequest } from "../api/publishers";
+import { registerPublisher } from "../api/publishers";
 
 interface PublisherSignupSheetProps {
   visible: boolean;
@@ -196,7 +196,7 @@ export function PublisherSignupSheet({
   onClose,
   onSuccess,
 }: PublisherSignupSheetProps) {
-  const { colors, shared, typography } = useAppTheme();
+  const { colors, typography } = useAppTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
 
   const [phase, setPhase] = useState<"form" | "loading" | "success">("form");
@@ -274,7 +274,7 @@ export function PublisherSignupSheet({
     } catch (err) {
       setPhase("form");
       const message = err instanceof Error ? err.message : "Registration failed. Please try again.";
-      Alert.alert("Registration Failed", message);
+      Alert.alert("Registration Failed", message, [{ text: "OK" }]);
     }
   };
 
@@ -312,9 +312,8 @@ export function PublisherSignupSheet({
                   style={[styles.input, errors.name && styles.inputError]}
                   autoCapitalize="words"
                   autoCorrect={false}
-                  editable={phase !== "loading"}
+                  editable
                   accessibilityLabel="Publisher name"
-                  accessibilityErrorMessage={touched.name ? errors.name : undefined}
                 />
                 {touched.name && errors.name && (
                   <Text style={styles.errorText} accessibilityLiveRegion="assertive">
@@ -335,9 +334,8 @@ export function PublisherSignupSheet({
                   autoCapitalize="none"
                   autoCorrect={false}
                   keyboardType="email-address"
-                  editable={phase !== "loading"}
+                  editable
                   accessibilityLabel="Email address"
-                  accessibilityErrorMessage={touched.email ? errors.email : undefined}
                 />
                 {touched.email && errors.email && (
                   <Text style={styles.errorText} accessibilityLiveRegion="assertive">
@@ -357,9 +355,8 @@ export function PublisherSignupSheet({
                   style={[styles.input, errors.walletAddress && styles.inputError]}
                   autoCapitalize="characters"
                   autoCorrect={false}
-                  editable={phase !== "loading"}
+                  editable
                   accessibilityLabel="Stellar wallet address"
-                  accessibilityErrorMessage={touched.walletAddress ? errors.walletAddress : undefined}
                 />
                 {touched.walletAddress && errors.walletAddress && (
                   <Text style={styles.errorText} accessibilityLiveRegion="assertive">
@@ -373,23 +370,19 @@ export function PublisherSignupSheet({
 
               <Pressable
                 onPress={handleSubmit}
-                disabled={phase === "loading"}
-                style={[styles.submitButton, phase === "loading" && styles.submitButtonDisabled]}
+                disabled={false}
+                style={styles.submitButton}
                 accessibilityRole="button"
                 accessibilityLabel="Create publisher account"
-                accessibilityState={{ disabled: phase === "loading", busy: phase === "loading" }}
+                accessibilityState={{ disabled: false, busy: false }}
               >
-                {phase === "loading" ? (
-                  <ActivityIndicator color="#ffffff" />
-                ) : (
-                  <Text style={styles.submitButtonText}>Create Account</Text>
-                )}
+                <Text style={styles.submitButtonText}>Create Account</Text>
               </Pressable>
 
               <Pressable
                 onPress={onClose}
-                disabled={phase === "loading"}
-                style={[styles.cancelButton, phase === "loading" && styles.submitButtonDisabled]}
+                disabled={false}
+                style={styles.cancelButton}
                 accessibilityRole="button"
                 accessibilityLabel="Cancel"
               >
@@ -408,7 +401,7 @@ export function PublisherSignupSheet({
           {phase === "success" && (
             <View style={styles.successContainer}>
               <Text style={styles.successTitle}>Account Created!</Text>
-              <Text style={typography.body} textAlign="center">
+              <Text style={[typography.body, { textAlign: "center" }]}>
                 Your publisher account is ready. Copy your API key now — it won't be shown again.
               </Text>
 
